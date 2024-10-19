@@ -1,25 +1,25 @@
 import streamlit as st
 
 login = st.Page(
-    "pages/Login.py",
+    "Login.py",
     title="Login",
     icon=":material/lock:",
 )
 
 input_data = st.Page(
-    "pages/input_data.py",
+    "input_data.py",
     title="Input Data",
     icon=":material/edit:",
 )
 
 view_your_map = st.Page(
-    "pages/View_Your_Map.py",
+    "View_Your_Map.py",
     title="View Your Map",
     icon=":material/map:",
 )
 
 update_data = st.Page(
-    "pages/update_data.py",
+    "update_data.py",
     title="Update Data",
     icon=":material/update:",
 )

@@ -2,6 +2,12 @@ import streamlit as st
 from openai import OpenAI
 import pandas as pd
 import time
+import csv
+from supabase import create_client
+
+url = st.secrets.connections.supabase['SUPABASE_URL']
+key = st.secrets.connections.supabase['SUPABASE_KEY']
+supabase = create_client(url, key)
 
 # Initialize session state for messages if it doesn't exist
 if 'messages' not in st.session_state:
@@ -95,6 +101,61 @@ def wait_on_run(run, thread):
     return run
 
 
+def build_plan(messages, uploaded_file):  # Add thread as a parameter
+    # Collect messages and files
+    user_messages = "\n".join([msg['content']
+                               for msg in messages if msg['role'] == 'user'])
+    assistant_messages = "\n".join(
+        [msg['content'] for msg in messages if msg['role'] == 'assistant'])
+
+    # Generate CSV data using the assistant
+    prompt = f"""
+    User messages: {user_messages}
+    Assistant messages: {assistant_messages}
+    Uploaded file: {uploaded_file}
+    Generate a CSV with the following columns: Month, Income, Expenses, Savings, Debt.
+    Include at least 2 years worth of data starting from the current month.
+    """
+
+    # Interact with assistant
+    thread, run = create_thread_and_run(prompt)
+    wait_on_run(run, thread)
+
+    # Retrieve assistant's response
+    messages = get_response(thread)
+
+    # Parse the CSV data
+    csv_data = client.beta.threads.messages.create(
+        thread_id=thread.id, role="user", content=prompt
+    ).content  # Assuming this retrieves the generated CSV data
+
+    # Get general data
+    count = supabase.table("user_financial_data").select(
+        "month", count="exact").execute()
+
+    financial_data = csv.DictReader(csv_data)
+
+    user_id = supabase.auth.get_user().user.id
+    # Insert data into Supabase
+    for row in financial_data:
+        count += 1
+        month = row["Month"].timestamp()
+        supabase.table("user_financial_data").insert({
+            "id": count,
+            "user_id": user_id,
+            "month": month,
+            "savings": row["Savings"],
+            "income": row["Income"],
+            "expenses": row["Expenses"],
+            "debt": row["Debt"]
+        }).execute()
+        response = (
+            supabase.table("user_financial_data")
+            .insert({"id": 1, "name": "Denmark"})
+            .execute()
+        )
+
+
 # Title
 st.title("Personal Finance Helper")
 
@@ -146,6 +207,14 @@ st.subheader(
     "Hi! I'm Fin, your personal finance assistant. How can I help you today?")
 if st.session_state.messages.count({"role": "assistant"}) == 0:
     st.caption("You have a couple of options. You can either upload a file, or directly tell Fin things like monthly expenses, income, savings, and debt.")
+col = st.columns(2)
+with col[0]:
+    st.caption(
+        "When you're ready, click this button to submit your financial data, and Fin will help you build a financial plan.")
+with col[1]:
+    st.button("Submit & Build Plan", on_click=build_plan, args=(
+        st.session_state.messages, uploaded_file))  # Pass messages and uploaded_file
+
 
 # Display chat history
 for msg in st.session_state.messages:
