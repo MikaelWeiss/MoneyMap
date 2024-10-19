@@ -2,10 +2,6 @@ import streamlit as st
 from openai import OpenAI
 import pandas as pd
 import time
-import toml  # Import toml library to read secrets
-
-# Load secrets from secrets.toml
-secrets = toml.load("secrets.toml")
 
 # Initialize session state for messages if it doesn't exist
 if 'messages' not in st.session_state:
@@ -13,9 +9,9 @@ if 'messages' not in st.session_state:
 
 # Initialize OpenAI client using secrets
 client = OpenAI(
-    api_key=secrets['openai']['api_key'],
-    organization=secrets['openai']['organization'],
-    project=secrets['openai']['project']
+    api_key=st.secrets['openai']['api_key'],
+    organization=st.secrets['openai']['organization'],
+    project=st.secrets['openai']['project']
 )
 
 # Create financial assistant
@@ -99,19 +95,6 @@ def wait_on_run(run, thread):
     return run
 
 
-# Emulate user request
-thread1, run1 = create_thread_and_run(
-    "I'm learning to manage my personal finances. Can you help me achieve financial freedom? Ask me specificially to tell you my monthly savings, income, expenses, and debt. Point out that I can either tell you that, or inport a file with that data.")
-wait_on_run(run1, thread1)
-
-# Retrieve assistant's response
-messages = get_response(thread1)
-
-if messages:
-    assistant_response = messages[-1]  # Get last message
-    st.session_state.messages.append(
-        {"role": "assistant", "content": assistant_response.content})
-
 # Title
 st.title("Personal Finance Helper")
 
@@ -161,6 +144,8 @@ if uploaded_file:
 # Chat Input Section
 st.subheader(
     "Hi! I'm Fin, your personal finance assistant. How can I help you today?")
+if st.session_state.messages.count({"role": "assistant"}) == 0:
+    st.caption("You have a couple of options. You can either upload a file, or directly tell Fin things like monthly expenses, income, savings, and debt.")
 
 # Display chat history
 for msg in st.session_state.messages:
@@ -181,8 +166,9 @@ if prompt := st.chat_input():
         if messages:
             assistant_response = messages[-1]  # Get last message
             st.session_state.messages.append(
-                {"role": "assistant", "content": assistant_response.content})
-            st.chat_message("assistant").write(assistant_response.content)
+                {"role": "assistant", "content": assistant_response.content[0].text.value})
+            st.chat_message("assistant").write(
+                assistant_response.content[0].text.value)
 
     except Exception as e:
         st.error(f"Error getting response from the assistant: {e}")
