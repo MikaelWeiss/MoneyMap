@@ -1,1 +1,188 @@
-# input-data.py
+import streamlit as st
+from openai import OpenAI
+import pandas as pd
+import time
+import toml  # Import toml library to read secrets
+
+# Load secrets from secrets.toml
+secrets = toml.load("secrets.toml")
+
+# Initialize session state for messages if it doesn't exist
+if 'messages' not in st.session_state:
+    st.session_state.messages = []  # Initialize as an empty list
+
+# Initialize OpenAI client using secrets
+client = OpenAI(
+    api_key=secrets['openai']['api_key'],
+    organization=secrets['openai']['organization'],
+    project=secrets['openai']['project']
+)
+
+# Create financial assistant
+# Create financial assistant
+assistant = client.beta.assistants.create(
+    name="Fin",
+    instructions="""
+As a financial expert, your task is to help the average person understand foundational categories of finance and guide them towards achieving financial freedom.
+
+Highlight key financial categories such as savings, income, expenses, and debt, providing clear explanations and actionable advice in each area.
+
+# Steps
+
+1. **Explain Financial Categories:**
+   - Define savings, income, expenses, and debt in simple terms.
+   - Illustrate the importance of each category in personal finance.
+
+2. **Actionable Advice:**
+   - Offer practical tips and strategies to manage each financial category effectively.
+   - Suggest specific actions individuals can take to improve their financial health.
+
+3. **Path to Financial Freedom:**
+   - Assemble the advice into a coherent plan aimed at achieving long-term financial stability and freedom.
+   - Highlight the importance of budgeting, saving, investing, and debt management in the journey towards financial freedom.
+
+# Output Format
+
+The response should be a well-organized paragraph or bullet points, providing a concise explanation and actionable advice for each financial category.
+
+# Examples
+
+**Example 1: Understanding Savings**
+
+- **Explanation**: Savings is the portion of your income that you set aside for future use. It is crucial for emergencies and future expenses.
+- **Actionable Advice**: Start saving 10% of your income, gradually increasing this percentage as you become more comfortable.
+
+**Example 2: Managing Expenses**
+
+- **Explanation**: Expenses are the costs incurred for goods and services. It's important to track and control them to avoid overspending.
+- **Actionable Advice**: Create a monthly budget to track expenses. Identify areas where you can reduce spending to save more.
+
+# Notes
+
+- Focus on simplicity and clarity to ensure the advice is accessible to individuals with minimal financial knowledge.
+- Encourage the habit of regular financial reviews and adjustments to plans as needed.
+- Address common misconceptions or challenges people face in each category.
+  """,
+    tools=[{"type": "file_search"}],
+    model="gpt-4o",
+)
+
+# Functions for assistant interaction
+
+
+def submit_message(assistant_id, thread, user_message):
+    client.beta.threads.messages.create(
+        thread_id=thread.id, role="user", content=user_message
+    )
+    return client.beta.threads.runs.create(
+        thread_id=thread.id, assistant_id=assistant_id
+    )
+
+
+def get_response(thread):
+    # Convert to list
+    return list(client.beta.threads.messages.list(thread_id=thread.id, order="asc"))
+
+
+def create_thread_and_run(user_input):
+    thread = client.beta.threads.create()
+    run = submit_message(assistant_id=assistant.id,
+                         thread=thread, user_message=user_input)
+    return thread, run
+
+
+def wait_on_run(run, thread):
+    while run.status in ["queued", "in_progress"]:
+        run = client.beta.threads.runs.retrieve(
+            thread_id=thread.id, run_id=run.id)
+        time.sleep(0.5)
+    return run
+
+
+# Emulate user request
+thread1, run1 = create_thread_and_run(
+    "I'm learning to manage my personal finances. Can you help me achieve financial freedom? Ask me specificially to tell you my monthly savings, income, expenses, and debt. Point out that I can either tell you that, or inport a file with that data.")
+wait_on_run(run1, thread1)
+
+# Retrieve assistant's response
+messages = get_response(thread1)
+
+if messages:
+    assistant_response = messages[-1]  # Get last message
+    st.session_state.messages.append(
+        {"role": "assistant", "content": assistant_response.content})
+
+# Title
+st.title("Personal Finance Helper")
+
+# Handle file uploads
+uploaded_file = st.file_uploader(
+    "Upload your financial spreadsheet (CSV, Excel)", type=["csv", "xlsx"])
+
+if uploaded_file:
+    try:
+        # Read the uploaded file
+        if uploaded_file.name.endswith('csv'):
+            df = pd.read_csv(uploaded_file)
+        else:
+            df = pd.read_excel(uploaded_file)
+
+        st.write("Uploaded File Preview:")
+        st.dataframe(df)
+
+        # Extract and summarize key financial data
+        file_data_summary = ""
+        if "expenses" in df.columns:
+            file_data_summary += f"Total Expenses: {df['expenses'].sum()}\n"
+        if "income" in df.columns:
+            file_data_summary += f"Total Income: {df['income'].sum()}\n"
+        if "savings" in df.columns:
+            file_data_summary += f"Total Savings: {df['savings'].sum()}\n"
+
+        # Prepare data for the assistant
+        file_data = df.to_string()
+        assistant_input = f"{file_data_summary}\nHere is the raw data:\n{file_data}\nCan you help interpret this personal finance data?"
+
+        # Interact with assistant
+        thread2, run2 = create_thread_and_run(assistant_input)
+        wait_on_run(run2, thread2)
+
+        # Retrieve assistant's response
+        messages = get_response(thread2)
+
+        if messages:
+            assistant_response = messages[-1]  # Get last message
+            st.write("Assistant's Interpretation:")
+            st.write(assistant_response.content)
+
+    except Exception as e:
+        st.error(f"Error processing file: {e}")
+
+# Chat Input Section
+st.subheader(
+    "Hi! I'm Fin, your personal finance assistant. How can I help you today?")
+
+# Display chat history
+for msg in st.session_state.messages:
+    st.chat_message(msg["role"]).write(msg["content"])
+
+# Handle user input
+if prompt := st.chat_input():
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    st.chat_message("user").write(prompt)
+
+    try:
+        # Create a new thread for this conversation and submit the user message
+        thread3, run3 = create_thread_and_run(prompt)
+        wait_on_run(run3, thread3)
+
+        # Retrieve assistant's response
+        messages = get_response(thread3)
+        if messages:
+            assistant_response = messages[-1]  # Get last message
+            st.session_state.messages.append(
+                {"role": "assistant", "content": assistant_response.content})
+            st.chat_message("assistant").write(assistant_response.content)
+
+    except Exception as e:
+        st.error(f"Error getting response from the assistant: {e}")

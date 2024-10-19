@@ -1,2 +1,4 @@
 streamlit
 st-supabase-connection
+openai
+pandas
