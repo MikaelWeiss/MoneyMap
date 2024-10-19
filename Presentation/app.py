@@ -13,7 +13,7 @@ input_data = st.Page(
 )
 
 view_your_map = st.Page(
-    "pages/view_your_map.py",
+    "pages/View_Your_Map.py",
     title="View Your Map",
     icon=":material/map:",
 )
