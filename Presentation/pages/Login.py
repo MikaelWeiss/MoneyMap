@@ -67,5 +67,6 @@ else:
             help="Password is encrypted",
         )
         if st.button("Sign in", use_container_width=True, disabled=not email or not password):
-            conn.auth.sign_in(dict(email=email, password=password))
+            conn.auth.sign_in_with_email_and_password(
+                dict(email=email, password=password))
             st.success("Signed in successfully")
