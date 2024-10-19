@@ -147,6 +147,9 @@ def build_plan(messages, uploaded_file):  # Add thread as a parameter
     # Clean up the JSON data
     json_data = json_data.replace("```json", "").replace("```", "").strip()
 
+    st.write("Assistant's JSON Response:")
+    st.code(json_data)
+
     # Convert JSON data to a list of dictionaries
     try:
         financial_data = json.loads(json_data)  # Parse JSON data
@@ -170,11 +173,6 @@ def build_plan(messages, uploaded_file):  # Add thread as a parameter
             "expenses": row["Expenses"],
             "debt": row["Debt"]
         }).execute()
-        response = (
-            supabase.table("user_financial_data")
-            .insert({"id": 1, "name": "Denmark"})
-            .execute()
-        )
 
 
 # Title
