@@ -10,16 +10,16 @@ conn = st.connection("supabase", type=SupabaseConnection)
 # If Confirm email is disabled, both a user and a session are returned.
 
 session = conn.auth.get_session()
-user = conn.auth.get_user()
+response = conn.auth.get_user()
 
-if user and session:
+if response and session:
     st.subheader("Manage Your Account")
-    st.write(f"Logged in as {user.email}")
+    st.write(f"Logged in as {response.user.email}")
     st.button("Sign out", on_click=conn.auth.sign_out)
-elif user and not session:
+elif response and not session:
     st.subheader("Confirm your email address")
     st.write(
-        f"Please check your email at {user.email} to confirm your account.")
+        f"Please check your email at {response.user.email} to confirm your account.")
 else:
     tab1, tab2 = st.tabs(["Sign up", "Sign in"])
 
@@ -54,8 +54,8 @@ else:
             )
 
             if st.button("Sign up", use_container_width=True, disabled=not email or not password):
-                conn.auth.sign_up(
-                    dict(email=email, password=password, fname=fname, attribution=attribution))
+                conn.auth.sign_up(dict(email=email, password=password, options=dict(
+                    data=dict(fname=fname, attribution=attribution))))
                 st.success("Check your email to confirm your account")
     with tab2:
         lcol, rcol = st.columns(2)
@@ -67,6 +67,6 @@ else:
             help="Password is encrypted",
         )
         if st.button("Sign in", use_container_width=True, disabled=not email or not password):
-            conn.auth.sign_in(
+            conn.auth.sign_in_with_password(
                 dict(email=email, password=password))
             st.success("Signed in successfully")
