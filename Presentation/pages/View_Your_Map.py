@@ -3,9 +3,21 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from st_supabase_connection import SupabaseConnection, execute_query
 
 st.title("Your Map to Success")
 st.caption("Let's be real. Finances are tough. Don't worry, there's a map to financial freedom for all of us!")
+
+# Initialize connection.
+conn = st.connection("supabase", type=SupabaseConnection, ttl=3600)
+
+# Perform query.
+rows = conn.table("user_financial_data").select("*").execute()
+
+# Print results.
+for row in rows.data:
+    st.write(
+        f"Month: {row['month']}, savings {row['savings']}, income: {row['income']} debt: {row['debt']}")
 
 showData = st.toggle("Show data", value=True)
 
@@ -29,7 +41,7 @@ if not showData:
 else:
     st.write(
         """
-Your financial path may be uphill, so keep your eye on the goal: *Financial freedom*
+Each of our paths are are probably uphill, so lets keep our eyes on the goal: *Financial freedom*
 """
     )
     chart_data = pd.DataFrame(np.array([[0, 2000, 100], [1, 2000, 200], [2, 2000, 300], [3, 2000, 400], [4, 2000, 500]]),
