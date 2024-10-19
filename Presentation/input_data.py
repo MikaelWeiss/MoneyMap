@@ -164,7 +164,6 @@ def build_plan(messages, uploaded_file):  # Add thread as a parameter
     for row in financial_data:
         count += 1
         supabase.table("user_financial_data").insert({
-            "month": row["Month"],
             "savings": row["Savings"],
             "income": row["Income"],
             "expenses": row["Expenses"],
