@@ -2,8 +2,9 @@ import streamlit as st
 from openai import OpenAI
 import pandas as pd
 import time
-import csv
 from supabase import create_client
+from io import StringIO
+import json
 
 url = st.secrets.connections.supabase['SUPABASE_URL']
 key = st.secrets.connections.supabase['SUPABASE_KEY']
@@ -108,13 +109,15 @@ def build_plan(messages, uploaded_file):  # Add thread as a parameter
     assistant_messages = "\n".join(
         [msg['content'] for msg in messages if msg['role'] == 'assistant'])
 
-    # Generate CSV data using the assistant
+    # Generate JSON data using the assistant
     prompt = f"""
+    Respond in JSON only
     User messages: {user_messages}
     Assistant messages: {assistant_messages}
     Uploaded file: {uploaded_file}
-    Generate a CSV with the following columns: Month, Income, Expenses, Savings, Debt.
+    Generate a JSON with the following keys: Month, Income, Expenses, Savings, Debt.
     Include at least 2 years worth of data starting from the current month.
+    Make the month be of type int, and have it start at 1 and increment by 1 for each month.
     """
 
     # Interact with assistant
@@ -124,26 +127,44 @@ def build_plan(messages, uploaded_file):  # Add thread as a parameter
     # Retrieve assistant's response
     messages = get_response(thread)
 
-    # Parse the CSV data
-    csv_data = client.beta.threads.messages.create(
-        thread_id=thread.id, role="user", content=prompt
-    ).content  # Assuming this retrieves the generated CSV data
+    # Ensure that the assistant's response is a string
+    json_data = messages[-1].content[0].text.value if messages else ""
+
+    # Check if json_data is empty
+    if not json_data:
+        st.error("The assistant's response is empty.")
+        # Log the raw messages for debugging
+        st.write("Assistant's raw response:", messages)
+        return
+
+    # Log the response for debugging
+    if not isinstance(json_data, str):
+        st.error("Unexpected response format from the assistant.")
+        # Log the raw response
+        st.write("Assistant's raw response:", json_data)
+        return
+
+    # Clean up the JSON data
+    json_data = json_data.replace("```json", "").replace("```", "").strip()
+
+    # Convert JSON data to a list of dictionaries
+    try:
+        financial_data = json.loads(json_data)  # Parse JSON data
+    except json.JSONDecodeError:
+        st.error("Failed to decode JSON data from the assistant's response.")
+        # Log the response for debugging
+        st.write("Assistant's response:", json_data)
+        return
 
     # Get general data
     count = supabase.table("user_financial_data").select(
-        "month", count="exact").execute()
+        "month", count="exact").execute().count
 
-    financial_data = csv.DictReader(csv_data)
-
-    user_id = supabase.auth.get_user().user.id
     # Insert data into Supabase
     for row in financial_data:
         count += 1
-        month = row["Month"].timestamp()
         supabase.table("user_financial_data").insert({
-            "id": count,
-            "user_id": user_id,
-            "month": month,
+            "month": row["Month"],
             "savings": row["Savings"],
             "income": row["Income"],
             "expenses": row["Expenses"],
