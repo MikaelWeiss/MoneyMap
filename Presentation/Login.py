@@ -89,7 +89,8 @@ else:
                 st.session_state['user'] = response.user
                 st.session_state['session'] = response.session
                 # Set the session for the Supabase client
-                supabase.auth.set_session(response.session)
+                supabase.auth.set_session(
+                    response.session, response.refresh_token)  # Added refresh_token
                 st.success("Signed in successfully")
             else:
                 st.error("Sign in failed. Please check your credentials.")
