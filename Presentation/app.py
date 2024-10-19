@@ -1,11 +1,5 @@
 import streamlit as st
 
-home = st.Page(
-    "app.py",
-    title="Home",
-    icon=":material/home:",
-)
-
 login = st.Page(
     "pages/Login.py",
     title="Login",
@@ -31,9 +25,9 @@ update_data = st.Page(
 )
 
 pg = st.navigation({
-    "Your Account": [login],
     "Plan": [input_data, update_data],
-    "Your Map": [view_your_map]
+    "Your Map": [view_your_map],
+    "Your Account": [login]
 })
 
 pg.run()
